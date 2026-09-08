@@ -1,45 +1,126 @@
 # NeuralMark
-> An interactive, educational hybrid search engine dashboard demonstrating BM25, Dense Vector Embeddings, and Reciprocal Rank Fusion (RRF).
+
+**An interactive, educational dashboard for understanding Hybrid Search.**
+
+NeuralMark is a hands-on visualization tool that demystifies how modern search
+engines combine *keyword matching* with *semantic understanding*. Instead of
+treating hybrid search as a black box, NeuralMark exposes every step of the
+pipeline — sparse scores, dense scores, and the fusion math that merges
+them — so you can see exactly why a document ranks where it does.
 
 ---
 
-## Overview
-NeuralMark provides a visual playground to understand how modern hybrid retrieval systems balance **sparse keyword search** and **dense semantic search**. By exposing the inner mechanics of Reciprocal Rank Fusion (RRF), users can adjust weighting controls ($\alpha$) in real-time and inspect rank list shifts.
+## Purpose
 
----
+Most production search systems (e-commerce, RAG pipelines, enterprise search)
+don't rely on a single retrieval method. They blend two complementary
+signals:
+
+- **Sparse retrieval (BM25)** — fast, exact keyword matching. Great for
+  rare terms, product codes, names — things embeddings tend to blur.
+- **Dense retrieval (embeddings)** — captures semantic meaning. Great for
+  paraphrases and conceptual similarity, even with zero keyword overlap.
+
+NeuralMark lets you issue a query, watch both retrievers score every
+document independently, and then tune an **alpha (α) slider** that controls
+how much weight each method gets in the final fused ranking. It's built for
+learning — every intermediate score is visible, not hidden behind an
+API response.
 
 ## How It Works
-1. **Sparse Search (BM25):** Calculates term frequency and inverse document frequency to score exact lexical matches.
-2. **Dense Search (SentenceTransformers):** Encodes documents and queries into 384-dimensional vector space using `all-MiniLM-L6-v2` and computes cosine similarity.
-3. **Reciprocal Rank Fusion (RRF):** Fuses rankings from both retrieval systems into a unified score using:
 
-$$RRF\_Score(d) = \frac{\alpha}{k + r_{BM25}(d)} + \frac{1 - \alpha}{k + r_{Dense}(d)}$$
+1. **Ingestion** — A small demo corpus is indexed two ways: a `BM25Okapi`
+   index (tokenized keyword statistics) and a dense vector index (sentence
+   embeddings from `all-MiniLM-L6-v2`).
+2. **Query time** — A user query is scored against both indexes
+   independently, producing two ranked lists.
+3. **Fusion (RRF)** — Instead of naively averaging incompatible score
+   scales (BM25 scores and cosine similarities live in very different
+   ranges), NeuralMark uses **Reciprocal Rank Fusion**:
 
-4. **Dimensionality Reduction (PCA):** Projects vector embeddings into 2D space for intuitive visualization on the React dashboard.
+   ```
+   RRF_score(d) = Σ  1 / (k + rank_i(d))
+   ```
 
----
+   summed over each retrieval method `i`, where `rank_i(d)` is the
+   document's position in that method's ranked list. The α slider
+   controls a weighted variant of this fusion so you can lean toward
+   pure keyword search, pure semantic search, or anywhere in between.
+4. **Visualization** — The React dashboard shows per-document score
+   breakdowns, rank movement between methods, and how the final fused
+   order shifts live as you drag α.
 
 ## Tech Stack
-* **Backend:** Python 3.11, FastAPI, Uvicorn, `rank_bm25`, `sentence-transformers`, `scikit-learn`
-* **Frontend:** React (Vite), Tailwind CSS, Lucide Icons
-* **DevOps:** Docker, Docker Compose
 
----
+| Layer      | Technology                                                  |
+|------------|--------------------------------------------------------------|
+| Backend    | Python 3.11, FastAPI, Uvicorn                                 |
+| Algorithms | `rank_bm25`, `sentence-transformers` (all-MiniLM-L6-v2), scikit-learn (PCA for embedding visualization) |
+| Frontend   | React (Vite), Tailwind CSS, Lucide Icons                      |
+| DevOps     | Docker, Docker Compose                                        |
+
+## Project Structure
+
+```
+neuralmark/
+├── backend/
+│   ├── main.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── SearchDashboard.jsx
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml
+└── README.md
+```
 
 ## Quick Start
 
 ### Prerequisites
-* [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/) installed on your machine.
+- Docker & Docker Compose installed
+- (Optional, for local dev without Docker) Python 3.11+ and Node 18+
 
-### Running with Docker Compose
+### Run with Docker Compose
+
 ```bash
-# 1. Clone the repository
-git clone [https://github.com/your-username/neuralmark.git](https://github.com/your-username/neuralmark.git)
-cd neuralmark
+# From the project root
+docker compose up --build
+```
 
-# 2. Build and start services
-docker-compose up --build
+- Backend API available at **http://localhost:8000** (docs at `/docs`)
+- Frontend dashboard available at **http://localhost:5173**
 
-# 3. Access the applications
-# Frontend Dashboard -> http://localhost:5173
-# FastAPI Interactive Docs -> http://localhost:8000/docs
+### Run locally without Docker
+
+**Backend:**
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Roadmap
+- [ ] Backend API skeleton + health check
+- [ ] BM25 sparse index
+- [ ] Dense embedding index (SentenceTransformers)
+- [ ] Reciprocal Rank Fusion endpoint with tunable alpha
+- [ ] React dashboard with alpha slider + rank inspection
+- [ ] PCA-based embedding space visualization
+- [ ] Dockerize backend + frontend, wire up Compose
+
+## License
+MIT (or your license of choice)****
